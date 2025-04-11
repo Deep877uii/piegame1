@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid Game - Red Light Green Light</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            touch-action: manipulation;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: 0;
+        }
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #name-input {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            text-align: center;
+            z-index: 10;
+            width: 80%;
+            max-width: 300px;
+        }
+        #name-input input {
+            padding: 15px;
+            margin: 10px 0;
+            width: 100%;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        #name-input select {
+            padding: 15px;
+            margin: 10px 0;
+            width: 100%;
+            font-size: 16px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #name-input button {
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        #question-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 15px 30px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            font-size: 24px;
+            z-index: 5;
+            text-align: center;
+            min-width: 200px;
+            max-width: 80%;
+        }
+        #question-image {
+            max-width: 100%;
+            max-height: 200px;
+            margin: 10px 0;
+            display: block;
+        }
+        #answer-input {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px;
+            font-size: 20px;
+            width: 150px;
+            text-align: center;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+        }
+        #progress-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        #question-number {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        #feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 5px;
+            font-size: 24px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+        .correct {
+            color: green;
+        }
+        .incorrect {
+            color: red;
+        }
+        @media (max-width: 600px) {
+            #game-container {
+                height: 300px;
+            }
+            #question-container {
+                font-size: 20px;
+                padding: 10px 20px;
+            }
+            #answer-input {
+                width: 120px;
+                font-size: 18px;
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="800" height="400"></canvas>
+        <div id="name-input">
+            <h2>Enter Your Name</h2>
+            <input type="text" id="player-name" placeholder="Your name">
+            <select id="difficulty-level">
+                <option value="easy">Easy</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <div id="question-container" style="display: none;">
+            <div id="question-text"></div>
+            <img id="question-image" style="display: none;">
+        </div>
+        <div id="progress-info" style="display: none;">
+            Questions: <span id="questions-answered">0</span>/<span id="min-questions">0</span>
+        </div>
+        <div id="question-number" style="display: none;">
+            Question <span id="current-question">1</span>/<span id="total-questions">3</span>
+        </div>
+        <input type="text" id="answer-input" style="display: none;" onkeypress="handleAnswer(event)">
+        <div id="feedback">
+            <span id="feedback-text"></span>
+            <br>
+            <button onclick="hideFeedback()">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const nameInput = document.getElementById('name-input');
+        const questionContainer = document.getElementById('question-container');
+        const questionText = document.getElementById('question-text');
+        const questionImage = document.getElementById('question-image');
+        const answerInput = document.getElementById('answer-input');
+        const progressInfo = document.getElementById('progress-info');
+        const questionsAnsweredSpan = document.getElementById('questions-answered');
+        const minQuestionsSpan = document.getElementById('min-questions');
+        
+        let playerId = null;
+        let playerName = null;
+        let gameState = null;
+        let playerPosition = 0;
+        let playerAlive = true;
+        let currentProblem = null;
+        let currentImage = null;
+        let canFinish = false;
+        let minQuestions = 3;
+
+        // Game assets
+        const assets = {
+            background: new Image(),
+            player: new Image()
+        };
+
+        // Load assets
+        assets.background.src = '/static/assets/background.jpg';
+        assets.player.src = '/static/assets/player.png';
+
+        function startGame() {
+            playerName = document.getElementById('player-name').value.trim();
+            const difficulty = document.getElementById('difficulty-level').value;
+            
+            if (!playerName) {
+                alert('Please enter your name');
+                return;
+            }
+
+            // Generate a unique player ID
+            playerId = 'player_' + Date.now();
+            
+            // Join the game
+            fetch('/api/game/join', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: playerId,
+                    name: playerName,
+                    difficulty: difficulty
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    nameInput.style.display = 'none';
+                    questionContainer.style.display = 'block';
+                    answerInput.style.display = 'block';
+                    progressInfo.style.display = 'block';
+                    getNewProblem();
+                    startGameLoop();
+                }
+            });
+        }
+
+        function getNewProblem() {
+            if (!playerId) return;
+            
+            fetch(`/api/game/problem?userId=${playerId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (data.problem.startsWith('Error:')) {
+                            alert(data.problem);
+                            location.reload();
+                            return;
+                        }
+                        
+                        // Update question text
+                        questionText.textContent = data.problem;
+                        
+                        // Update question image if available
+                        if (data.image) {
+                            questionImage.src = `data:image/png;base64,${data.image}`;
+                            questionImage.style.display = 'block';
+                        } else {
+                            questionImage.style.display = 'none';
+                        }
+                        
+                        // Update progress info
+                        questionsAnsweredSpan.textContent = data.questions_answered;
+                        minQuestionsSpan.textContent = data.min_questions;
+                        minQuestions = data.min_questions;
+                        canFinish = data.can_finish;
+                        
+                        // Update question number
+                        document.getElementById('current-question').textContent = data.current_question;
+                        document.getElementById('total-questions').textContent = data.total_questions;
+                        
+                        // Reset answer input
+                        answerInput.value = '';
+                        answerInput.focus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching problem:', error);
+                    alert('Error loading question. Please check if questions.json is properly configured.');
+                    location.reload();
+                });
+        }
+
+        function startGameLoop() {
+            // Start the game loop
+            setInterval(updateGame, 1000/60); // 60 FPS
+            setInterval(updateGameState, 1000); // Update game state every second
+        }
+
+        function updateGameState() {
+            fetch('/api/game/state')
+                .then(response => response.json())
+                .then(state => {
+                    gameState = state;
+                });
+        }
+
+        function updateGame() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw background
+            ctx.drawImage(assets.background, 0, 0, canvas.width, canvas.height);
+
+            // Draw finish line
+            ctx.fillStyle = 'black';
+            ctx.fillRect(canvas.width - 10, 0, 10, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '20px Arial';
+            ctx.fillText('FINISH', canvas.width - 80, canvas.height / 2);
+
+            // Calculate player position with animation
+            const targetX = 50 + playerPosition * 50;
+            const currentX = playerPosition === 0 ? 50 : 50 + (playerPosition - 1) * 50;
+            const step = (targetX - currentX) / 10;
+            
+            // Draw player with smooth movement
+            if (playerAlive) {
+                ctx.drawImage(assets.player, currentX + step, canvas.height - 100, 50, 70);
+            }
+
+            // Draw score
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${playerPosition * 10}`, 20, 30);
+            
+            // Draw finish requirement if not met
+            if (!canFinish && playerPosition >= 10) {
+                ctx.fillStyle = 'red';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(`Answer ${minQuestions} questions to finish!`, canvas.width / 2 - 100, 30);
+            }
+        }
+
+        function handleAnswer(event) {
+            if (event.key === 'Enter') {
+                const answer = answerInput.value.trim().toUpperCase();
+                if (!answer) {
+                    alert('Please enter an answer');
+                    return;
+                }
+
+                fetch('/api/game/move', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: playerId,
+                        answer: answer
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Show feedback
+                        const feedback = document.getElementById('feedback');
+                        const feedbackText = document.getElementById('feedback-text');
+                        
+                        if (data.is_correct) {
+                            feedbackText.textContent = 'Correct! +10 points';
+                            feedbackText.className = 'correct';
+                            // Animate movement
+                            const oldPosition = playerPosition;
+                            playerPosition = data.position;
+                            // Start movement animation
+                            animateMovement(oldPosition, playerPosition);
+                        } else {
+                            feedbackText.textContent = 'Incorrect! Try the next question';
+                            feedbackText.className = 'incorrect';
+                        }
+                        
+                        feedback.style.display = 'block';
+                        answerInput.style.display = 'none';
+                        
+                        // Update progress info
+                        questionsAnsweredSpan.textContent = data.questions_answered;
+                        minQuestionsSpan.textContent = data.min_questions;
+                        canFinish = data.can_finish;
+                        
+                        // Update question number
+                        document.getElementById('current-question').textContent = data.current_question;
+                        document.getElementById('total-questions').textContent = data.total_questions;
+                        
+                        if (!playerAlive) {
+                            alert('Game Over! You were eliminated.');
+                            location.reload();
+                        } else if (playerPosition >= 10 && canFinish) {
+                            alert('Congratulations! You won!');
+                            location.reload();
+                        }
+                    }
+                });
+            }
+        }
+
+        function animateMovement(oldPosition, newPosition) {
+            let steps = 0;
+            const animationInterval = setInterval(() => {
+                steps++;
+                if (steps >= 10) {
+                    clearInterval(animationInterval);
+                }
+            }, 50); // 50ms per step for smooth animation
+        }
+
+        function hideFeedback() {
+            const feedback = document.getElementById('feedback');
+            const answerInput = document.getElementById('answer-input');
+            
+            feedback.style.display = 'none';
+            answerInput.style.display = 'block';
+            answerInput.value = '';
+            answerInput.focus();
+            
+            // Get next problem
+            getNewProblem();
+        }
+
+        // Initial game state update
+        updateGameState();
+    </script>
+</body>
+</html> 

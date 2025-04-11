@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid Game - Teacher Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            flex: 1;
+            margin: 0 10px;
+        }
+        .chart-container {
+            margin: 20px 0;
+            height: 300px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Squid Game - Teacher Dashboard</h1>
+        
+        <div class="stats-container">
+            <div class="stat-box">
+                <h3>Total Students</h3>
+                <div id="total-students">Loading...</div>
+            </div>
+            <div class="stat-box">
+                <h3>Active Players</h3>
+                <div id="active-players">Loading...</div>
+            </div>
+            <div class="stat-box">
+                <h3>Average Score</h3>
+                <div id="avg-score">Loading...</div>
+            </div>
+            <div class="stat-box">
+                <h3>Success Rate</h3>
+                <div id="success-rate">Loading...</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="performance-chart"></canvas>
+        </div>
+
+        <h2>Current Game State</h2>
+        <table id="current-players">
+            <thead>
+                <tr>
+                    <th>Player Name</th>
+                    <th>Position</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="4">Loading...</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Recent Sessions</h2>
+        <table id="recent-sessions">
+            <thead>
+                <tr>
+                    <th>Player Name</th>
+                    <th>Score</th>
+                    <th>Correct Answers</th>
+                    <th>Wrong Answers</th>
+                    <th>Duration</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="6">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let performanceChart = null;
+
+        function updateDashboard() {
+            // Update game state
+            fetch('/api/game/state')
+                .then(response => response.json())
+                .then(state => {
+                    updateCurrentPlayers(state.players);
+                });
+
+            // Update statistics
+            fetch('/api/dashboard/users')
+                .then(response => response.json())
+                .then(users => {
+                    updateStatistics(users);
+                });
+
+            // Update recent sessions
+            fetch('/api/dashboard/sessions')
+                .then(response => response.json())
+                .then(sessions => {
+                    updateRecentSessions(sessions);
+                });
+        }
+
+        function updateCurrentPlayers(players) {
+            const tbody = document.querySelector('#current-players tbody');
+            tbody.innerHTML = '';
+            
+            Object.entries(players).forEach(([id, player]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${player.name}</td>
+                    <td>${player.position}</td>
+                    <td>${player.score}</td>
+                    <td>${player.alive ? 'Alive' : 'Eliminated'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStatistics(users) {
+            const totalStudents = users.length;
+            const totalScore = users.reduce((sum, user) => sum + parseInt(user.TotalScore), 0);
+            const avgScore = totalScore / totalStudents;
+            const successRate = (users.filter(user => parseInt(user.CorrectAnswers) > parseInt(user.WrongAnswers)).length / totalStudents) * 100;
+
+            document.getElementById('total-students').textContent = totalStudents;
+            document.getElementById('avg-score').textContent = Math.round(avgScore);
+            document.getElementById('success-rate').textContent = `${Math.round(successRate)}%`;
+
+            // Update performance chart
+            if (!performanceChart) {
+                const ctx = document.getElementById('performance-chart').getContext('2d');
+                performanceChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Correct Answers', 'Wrong Answers'],
+                        datasets: [{
+                            label: 'Class Performance',
+                            data: [
+                                users.reduce((sum, user) => sum + parseInt(user.CorrectAnswers), 0),
+                                users.reduce((sum, user) => sum + parseInt(user.WrongAnswers), 0)
+                            ],
+                            backgroundColor: ['#4CAF50', '#f44336']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            } else {
+                performanceChart.data.datasets[0].data = [
+                    users.reduce((sum, user) => sum + parseInt(user.CorrectAnswers), 0),
+                    users.reduce((sum, user) => sum + parseInt(user.WrongAnswers), 0)
+                ];
+                performanceChart.update();
+            }
+        }
+
+        function updateRecentSessions(sessions) {
+            const tbody = document.querySelector('#recent-sessions tbody');
+            tbody.innerHTML = '';
+            
+            sessions.slice(0, 5).forEach(session => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${session.player_name}</td>
+                    <td>${session.total_score}</td>
+                    <td>${session.correct_answers}</td>
+                    <td>${session.wrong_answers}</td>
+                    <td>${Math.round(session.playtime)}s</td>
+                    <td>${session.game_complete ? 'Won' : (session.eliminated ? 'Eliminated' : 'Incomplete')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Update dashboard every 5 seconds
+        setInterval(updateDashboard, 5000);
+        // Initial update
+        updateDashboard();
+    </script>
+</body>
+</html> 
